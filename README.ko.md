@@ -1,181 +1,180 @@
-# Spine
+<div align="center">
+  <h1>🩻 Spine</h1>
+  <p><em>머신러닝 관측성(Observability) 시스템을 위한 표준 컨트랙트 라이브러리</em></p>
 
-`Spine`은 ML 관측 가능성 시스템을 위한 canonical contract 라이브러리입니다.
+[![Actions status](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml/badge.svg)](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://github.com/eastlighting1/Spine)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-영문 README: [README.md](./README.md)
+[**English**](./README.md) • [**한국어**](./README.ko.md)
 
-Spine은 실행 컨텍스트, 관측 레코드, 산출물, lineage, validation, deterministic serialization, compatibility-aware reading을 위한 공용 모델을 팀에 제공합니다. producer마다 제각각 payload shape를 만들게 두는 대신, 같은 종류의 객체를 만들고 검증하고 직렬화하고 다시 읽어오는 과정을 하나의 계약으로 묶습니다.
+</div>
 
-## 왜 Spine인가
+---
 
-ML 시스템은 보통 다음 지점에서 쉽게 drift가 생깁니다.
+**Spine**은 실행 컨텍스트, 관측성 기록, 아티팩트, 데이터 계보(lineage), 유효성 검사, 결정론적 직렬화 및 호환성을 고려한 읽기 작업을 위해 팀 전체가 공유할 수 있는 모델을 제공합니다.
 
-- run과 project identity,
-- metric과 event payload shape,
-- timestamp 정규화,
-- artifact metadata,
-- lineage와 provenance 표현,
-- legacy payload 처리.
+각각의 프로듀서가 자체적인 페이로드 형태를 고안하게 두는 대신, Spine은 전체 머신러닝 파이프라인에 걸쳐 동일한 종류의 객체를 일관되게 생성, 검증, 직렬화 및 다시 읽어 들일 수 있도록 **단 하나의 통합된 컨트랙트(규약)**를 제공합니다.
 
-Spine은 이런 drift를 모델 계층에서 막기 위해 존재합니다.
+## ❓ 왜 Spine인가?
 
-Spine으로 다음을 모델링할 수 있습니다.
+머신러닝 시스템은 보통 다음과 같은 동일한 지점에서 어긋나고 고장 납니다.
 
-- `Project`, `Run`, `StageExecution`, `OperationContext`, `EnvironmentSnapshot` 기반 실행 컨텍스트,
-- `StructuredEventRecord`, `MetricRecord`, `TraceSpanRecord` 기반 관측 레코드,
-- `ArtifactManifest` 기반 결과물,
-- `LineageEdge`, `ProvenanceRecord` 기반 의미 관계,
-- validation과 deterministic serialization을 통한 계약 집행,
-- explicit compatibility reader를 통한 legacy upgrade 경로.
+- Run(실행) 및 프로젝트 식별
+- 메트릭 및 이벤트 페이로드 형태
+- 타임스탬프 정규화
+- 아티팩트 메타데이터
+- 데이터 계보(Lineage) 및 출처(provenance) 표현
+- 레거시 페이로드 처리
 
-## 핵심 개념
+> **Spine은 모델 계층에서 이러한 어긋남(drift)을 방지하기 위해 존재합니다.**
 
-Spine은 다음 구조로 이해하면 가장 쉽습니다.
+Spine을 사용하면 다음에 대한 엄격한 모델을 강제할 수 있습니다.
 
-```text
-Project
-  -> Run
-    -> StageExecution
-      -> OperationContext
-        -> RecordEnvelope + Payload
+- **실행 컨텍스트 (Execution Context):** `Project`, `Run`, `StageExecution`, `OperationContext`, `EnvironmentSnapshot`
+- **관측성 기록 (Observability Records):** `StructuredEventRecord`, `MetricRecord`, `TraceSpanRecord`
+- **영구 출력물 (Durable Outputs):** `ArtifactManifest`
+- **의미론적 관계 (Semantic Relationships):** `LineageEdge`, `ProvenanceRecord`
 
-Run / Stage
-  -> ArtifactManifest
+## 🧠 핵심 아이디어
 
-Refs between objects
-  -> LineageEdge
-  -> ProvenanceRecord
-```
+Spine은 계층적 데이터 모델을 통해 이해하는 것이 가장 쉽습니다. 실행 컨텍스트는 관찰된 사실(observed facts)과 엄격하게 분리됩니다.
 
-이 라이브러리는 몇 가지 강한 기본 원칙 위에 서 있습니다.
+    graph TD
+        %% Context Hierarchy
+        P[Project] --> R[Run]
+        R --> S[StageExecution]
+        S --> O[OperationContext]
+        O --> E[RecordEnvelope]
+        E --> PL((Payload))
 
-- 모델 내부 식별자는 ad hoc string 대신 `StableRef` 사용,
-- 실행 컨텍스트와 관측 사실 분리,
-- 객체 생성 직후 validation 수행,
-- deterministic canonical payload로 serialization,
-- migration을 숨겨진 마법이 아니라 explicit compatibility path로 처리.
+        %% Artifacts & Lineage
+        R -.-> AM[ArtifactManifest]
+        S -.-> AM
+        
+        %% Styles
+        classDef context fill:#f9f2f4,stroke:#c7254e,stroke-width:2px;
+        classDef record fill:#eef1f8,stroke:#428bca,stroke-width:2px;
+        classDef artifact fill:#f4f9f4,stroke:#5cb85c,stroke-width:2px;
+        
+        class P,R,S,O context;
+        class E,PL record;
+        class AM artifact;
 
-## 설치
+### 강력한 기본값 (Strong Defaults)
 
-로컬 개발에서 `uv`를 쓸 경우:
+- 임시방편적인 식별자 문자열 대신 `StableRef`를 사용합니다.
+- 객체 생성 즉시 유효성을 검사합니다.
+- 결정론적이고 표준적인(canonical) 페이로드로 직렬화합니다.
+- 데이터 마이그레이션을 암묵적인 마법이 아닌 명시적인 호환성 경로로 취급합니다.
 
-```bash
-uv run --with-editable . python
-```
+## 📦 설치 방법
 
-import 확인:
+저장소를 클론합니다:
 
-```bash
-uv run --with-editable . python -c "import spine; print(spine.__file__)"
-```
+    git clone https://github.com/eastlighting1/Spine.git
+    cd Spine
 
-테스트 실행:
+`uv`를 사용한 로컬 개발 환경 구성:
 
-```bash
-uv run pytest tests
-```
+    uv run --with-editable . python
 
-## 빠른 예제
+설치 확인:
 
-```python
-from spine import (
-    MetricPayload,
-    MetricRecord,
-    Project,
-    RecordEnvelope,
-    Run,
-    StableRef,
-    to_json,
-    validate_metric_record,
-    validate_project,
-    validate_run,
-)
+    uv run --with-editable . python -c "import spine; print(spine.__file__)"
 
-project = Project(
-    project_ref=StableRef("project", "nova"),
-    name="NovaVision",
-    created_at="2026-03-30T09:00:00Z",
-)
-validate_project(project).raise_for_errors()
+테스트 도구 실행:
 
-run = Run(
-    run_ref=StableRef("run", "train-20260330-01"),
-    project_ref=project.project_ref,
-    name="baseline-resnet50",
-    status="running",
-    started_at="2026-03-30T09:05:00Z",
-)
-validate_run(run).raise_for_errors()
+    uv run pytest tests
 
-metric = MetricRecord(
-    envelope=RecordEnvelope(
-        record_ref=StableRef("record", "metric-step-42"),
-        record_type="metric",
-        recorded_at="2026-03-30T09:08:30Z",
-        observed_at="2026-03-30T09:08:30Z",
-        producer_ref="scribe.python.local",
-        run_ref=run.run_ref,
-        stage_execution_ref=None,
-        operation_context_ref=None,
-    ),
-    payload=MetricPayload(
-        metric_key="training.loss",
-        value=0.4821,
-        value_type="scalar",
-        unit="ratio",
-    ),
-)
-validate_metric_record(metric).raise_for_errors()
+## ⚡ 빠른 시작
 
-print(to_json(metric))
-```
+Spine의 기본적인 사용 루프는 간단합니다. **1) 표준 객체 생성 ➔ 2) 유효성 검사 ➔ 3) 시스템 경계에서 직렬화**
 
-기본 사용 루프는 다음과 같습니다.
+    from spine import (
+        MetricPayload,
+        MetricRecord,
+        Project,
+        RecordEnvelope,
+        Run,
+        StableRef,
+        to_json,
+        validate_metric_record,
+        validate_project,
+        validate_run,
+    )
 
-1. canonical object를 만든다.
-2. validation한다.
-3. 시스템 경계에서만 serialization한다.
+    # 1. 컨텍스트 정의 및 유효성 검사
+    project = Project(
+        project_ref=StableRef("project", "nova"),
+        name="NovaVision",
+        created_at="2026-03-30T09:00:00Z",
+    )
+    validate_project(project).raise_for_errors()
 
-## 무엇을 얻는가
+    run = Run(
+        run_ref=StableRef("run", "train-20260330-01"),
+        project_ref=project.project_ref,
+        name="baseline-resnet50",
+        status="running",
+        started_at="2026-03-30T09:05:00Z",
+    )
+    validate_run(run).raise_for_errors()
 
-- context, record, artifact, lineage, provenance를 위한 canonical model.
-- ref, timestamp, enum, schema boundary에 대한 strict validation.
-- fixture, 저장, 해시, 전송에 적합한 deterministic JSON-compatible serialization.
-- raw payload를 parse하고 validate하는 current-schema deserializer.
-- 지원하는 legacy payload를 current canonical object로 올리는 compatibility reader.
-- namespace 기반 `ExtensionFieldSet`, `ExtensionRegistry`를 통한 governed extension.
+    # 2. 관찰된 사실 기록
+    metric = MetricRecord(
+        envelope=RecordEnvelope(
+            record_ref=StableRef("record", "metric-step-42"),
+            record_type="metric",
+            recorded_at="2026-03-30T09:08:30Z",
+            observed_at="2026-03-30T09:08:30Z",
+            producer_ref="scribe.python.local",
+            run_ref=run.run_ref,
+            stage_execution_ref=None,
+            operation_context_ref=None,
+        ),
+        payload=MetricPayload(
+            metric_key="training.loss",
+            value=0.4821,
+            value_type="scalar",
+            unit="ratio",
+        ),
+    )
+    validate_metric_record(metric).raise_for_errors()
 
-## 문서
+    # 3. 결정론적 직렬화
+    print(to_json(metric))
 
-- 영어 가이드: [docs/en/README.md](./docs/en/README.md)
-- 한국어 가이드: [docs/ko/README.md](./docs/ko/README.md)
-- 영어 API reference: [docs/en/api-reference.md](./docs/en/api-reference.md)
-- 한국어 API reference: [docs/ko/api-reference.md](./docs/ko/api-reference.md)
+## 📚 공식 문서
 
-처음 보는 사용자라면 다음 순서가 가장 빠릅니다.
+Spine의 아키텍처와 API에 대해 더 자세히 알아보세요.
 
-1. [시작하기](./docs/ko/getting-started.md)
-2. [Spine 모델 이해하기](./docs/ko/understanding-spine-models.md)
-3. [컨텍스트 모델](./docs/ko/context-models.md)
-4. [관측 레코드](./docs/ko/observability-records.md)
-5. [산출물과 계보](./docs/ko/artifacts-and-lineage.md)
+| 가이드 | English | 한국어 |
+|---|---|---|
+| **메인 가이드** | [README.md](./docs/en/README.md) | [README.md](./docs/ko/README.md) |
+| **API 레퍼런스** | [api-reference.md](./docs/en/api-reference.md) | [api-reference.md](./docs/ko/api-reference.md) |
 
-## 저장소 구조
+**권장 읽기 순서:**
 
-- `src/spine`: public package와 구현
-- `examples`: 실행 가능한 example flow
-- `tests`: model 및 serialization 테스트
-- `docs/en`: 영어 가이드
-- `docs/ko`: 한국어 가이드
+1. [시작하기 (Getting Started)](./docs/en/getting-started.md)
+2. [Spine 모델 이해하기](./docs/en/understanding-spine-models.md)
+3. [컨텍스트 모델](./docs/en/context-models.md)
+4. [관측성 기록](./docs/en/observability-records.md)
+5. [아티팩트 및 데이터 계보](./docs/en/artifacts-and-lineage.md)
 
-## 현재 상태
+## 🏗️ 저장소 구조
 
-이 저장소는 아직 초기 단계이지만, 핵심 contract surface는 이미 갖춰져 있습니다.
+- `src/spine`: 공개 패키지 및 구현체
+- `examples`: 실행 가능한 예제 플로우
+- `tests`: 모델 및 직렬화 테스트
+- `docs/en` & `docs/ko`: 상세 문서
 
-- canonical object modeling,
-- validation,
-- deterministic serialization,
-- compatibility-aware reading,
-- extension namespace governance.
+## 🚦 현재 상태
 
-포함된 example과 현재 테스트 스위트는 모두 `uv` 기준으로 정상 실행됩니다.
+이 저장소는 현재 초기 단계에 있지만, 핵심적인 컨트랙트 표면(contract surface)은 완전히 작동합니다:
+
+- ✅ 표준 객체 모델링
+- ✅ 엄격한 스키마 유효성 검사
+- ✅ 결정론적 직렬화
+- ✅ 호환성을 고려한 읽기
+- ✅ 확장 네임스페이스 관리(governance)
