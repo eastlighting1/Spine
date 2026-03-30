@@ -69,6 +69,13 @@ graph TD
 
 ## 📦 Installation
 
+Clone the repository:
+
+```bash
+git clone https://github.com/eastlighting1/Spine.git
+cd Spine
+```
+
 For local development with `uv`:
 
 ```bash
