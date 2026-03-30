@@ -1,0 +1,31 @@
+{
+  "completeness_marker": "complete",
+  "correlation_refs": {
+    "session_id": null,
+    "trace_id": "trace-train-01"
+  },
+  "degradation_marker": "none",
+  "extensions": [],
+  "observed_at": "2026-03-29T10:16:02Z",
+  "operation_context_ref": "op:step-42",
+  "payload": {
+    "aggregation_scope": "step",
+    "metric_key": "training.loss",
+    "slice_ref": null,
+    "subject_ref": null,
+    "summary_basis": "raw_step_observation",
+    "tags": {
+      "device": "cuda:0"
+    },
+    "unit": "ratio",
+    "value": 0.4821,
+    "value_type": "scalar"
+  },
+  "producer_ref": "sdk.python.local",
+  "record_ref": "record:metric-step-42",
+  "record_type": "metric",
+  "recorded_at": "2026-03-29T10:16:02Z",
+  "run_ref": "run:run-01",
+  "schema_version": "1.0.0",
+  "stage_execution_ref": "stage:train"
+}

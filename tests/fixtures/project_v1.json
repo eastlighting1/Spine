@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-03-29T10:15:21Z",
+  "description": "Image classification project.",
+  "name": "NovaVision",
+  "project_ref": "project:nova",
+  "schema_version": "1.0.0",
+  "tags": {
+    "team": "research",
+    "track": "vision"
+  }
+}
