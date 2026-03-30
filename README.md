@@ -1,65 +1,73 @@
-# Spine
+<div align="center">
+  <h1>🩻 Spine</h1>
+  <p><em>A Canonical Contract Library for ML Observability Systems</em></p>
 
-[![Actions status](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml/badge.svg)](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml)
+  [![Actions status](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml/badge.svg)](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml)
+  [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://github.com/eastlighting1/Spine)
+  [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+  
+  [**English**](./README.md) • [**한국어**](./README.ko.md)
+</div>
 
-`Spine` is a canonical contract library for ML observability systems.
+---
 
-Korean README: [README.ko.md](./README.ko.md)
+**Spine** gives teams a shared model for execution context, observability records, artifacts, lineage, validation, deterministic serialization, and compatibility-aware reading. 
 
-It gives teams a shared model for execution context, observability records, artifacts, lineage, validation, deterministic serialization, and compatibility-aware reading. Instead of letting each producer invent its own payload shape, Spine gives you one contract for building, validating, serializing, and re-reading the same kinds of objects consistently.
+Instead of letting each producer invent its own payload shape, Spine provides **one single contract** for building, validating, serializing, and re-reading the same kinds of objects consistently across your entire ML pipeline.
 
-The repository includes a GitHub Actions workflow for linting, type-checking, tests, dependency auditing, package builds, and repository-level security checks.
+## ❓ Why Spine
 
-## Why Spine
+ML systems usually drift and break down in the same places:
+- Run and project identity
+- Metric and event payload shapes
+- Timestamp normalization
+- Artifact metadata
+- Lineage and provenance representation
+- Legacy payload handling
 
-ML systems usually drift in the same places:
+> **Spine exists to stop that drift at the model layer.**
 
-- run and project identity,
-- metric and event payload shape,
-- timestamp normalization,
-- artifact metadata,
-- lineage and provenance representation,
-- legacy payload handling.
+With Spine, you can enforce strict models for:
+- **Execution Context:** `Project`, `Run`, `StageExecution`, `OperationContext`, `EnvironmentSnapshot`
+- **Observability Records:** `StructuredEventRecord`, `MetricRecord`, `TraceSpanRecord`
+- **Durable Outputs:** `ArtifactManifest`
+- **Semantic Relationships:** `LineageEdge`, `ProvenanceRecord`
 
-Spine exists to stop that drift at the model layer.
+## 🧠 Core Ideas
 
-With Spine, you can model:
+Spine is easiest to understand through its hierarchical data model. Execution context is strictly separated from observed facts:
 
-- execution context with `Project`, `Run`, `StageExecution`, `OperationContext`, and `EnvironmentSnapshot`,
-- observability records with `StructuredEventRecord`, `MetricRecord`, and `TraceSpanRecord`,
-- durable outputs with `ArtifactManifest`,
-- semantic relationships with `LineageEdge` and `ProvenanceRecord`,
-- contract enforcement through validation and deterministic serialization,
-- legacy upgrade paths through explicit compatibility readers.
+```mermaid
+graph TD
+    %% Context Hierarchy
+    P[Project] --> R[Run]
+    R --> S[StageExecution]
+    S --> O[OperationContext]
+    O --> E[RecordEnvelope]
+    E --> PL((Payload))
 
-## Core Ideas
-
-Spine is easiest to understand through one simple shape:
-
-```text
-Project
-  -> Run
-    -> StageExecution
-      -> OperationContext
-        -> RecordEnvelope + Payload
-
-Run / Stage
-  -> ArtifactManifest
-
-Refs between objects
-  -> LineageEdge
-  -> ProvenanceRecord
+    %% Artifacts & Lineage
+    R -.-> AM[ArtifactManifest]
+    S -.-> AM
+    
+    %% Styles
+    classDef context fill:#f9f2f4,stroke:#c7254e,stroke-width:2px;
+    classDef record fill:#eef1f8,stroke:#428bca,stroke-width:2px;
+    classDef artifact fill:#f4f9f4,stroke:#5cb85c,stroke-width:2px;
+    
+    class P,R,S,O context;
+    class E,PL record;
+    class AM artifact;
 ```
 
-The library is built around a few strong defaults:
+### Strong Defaults
 
-- use `StableRef` instead of ad hoc identity strings inside models,
-- keep execution context separate from observed facts,
-- validate objects right after construction,
-- serialize into deterministic canonical payloads,
-- treat migration as an explicit compatibility path, not silent magic.
+- Use `StableRef` instead of ad hoc identity strings.
+- Validate objects immediately upon construction.
+- Serialize into deterministic, canonical payloads.
+- Treat data migration as an explicit compatibility path, not silent magic.
 
-## Installation
+## 📦 Installation
 
 For local development with `uv`:
 
@@ -67,19 +75,21 @@ For local development with `uv`:
 uv run --with-editable . python
 ```
 
-To verify imports:
+To verify the installation:
 
 ```bash
 uv run --with-editable . python -c "import spine; print(spine.__file__)"
 ```
 
-To run tests:
+To run the test suite:
 
 ```bash
 uv run pytest tests
 ```
 
-## Quick Example
+## ⚡ Quick Start
+
+The basic usage loop in Spine is simple: **1) Build canonical objects ➔ 2) Validate them ➔ 3) Serialize at system boundaries.**
 
 ```python
 from spine import (
@@ -95,6 +105,7 @@ from spine import (
     validate_run,
 )
 
+# 1. Define and Validate Context
 project = Project(
     project_ref=StableRef("project", "nova"),
     name="NovaVision",
@@ -111,6 +122,7 @@ run = Run(
 )
 validate_run(run).raise_for_errors()
 
+# 2. Record an Observed Fact
 metric = MetricRecord(
     envelope=RecordEnvelope(
         record_ref=StableRef("record", "metric-step-42"),
@@ -131,32 +143,20 @@ metric = MetricRecord(
 )
 validate_metric_record(metric).raise_for_errors()
 
+# 3. Serialize Deterministically
 print(to_json(metric))
 ```
 
-The basic usage loop is:
+## 📚 Documentation
 
-1. build canonical objects,
-2. validate them,
-3. serialize them only at system boundaries.
+Dive deeper into Spine's architecture and API:
 
-## What You Get
+| Guide | English | 한국어 |
+|---|---|---|
+| **Main Guide** | [README.md](./docs/en/README.md) | [README.md](./docs/ko/README.md) |
+| **API Reference** | [api-reference.md](./docs/en/api-reference.md) | [api-reference.md](./docs/ko/api-reference.md) |
 
-- Canonical models for context, records, artifacts, lineage, and provenance.
-- Strict validation for refs, timestamps, enum values, and schema boundaries.
-- Deterministic JSON-compatible serialization for fixtures, storage, hashing, and transport.
-- Current-schema deserializers that parse and validate raw payloads.
-- Compatibility readers that upgrade supported legacy payloads into current canonical objects.
-- Governed extensions through namespaced `ExtensionFieldSet` and `ExtensionRegistry`.
-
-## Documentation
-
-- English guide: [docs/en/README.md](./docs/en/README.md)
-- Korean guide: [docs/ko/README.md](./docs/ko/README.md)
-- English API reference: [docs/en/api-reference.md](./docs/en/api-reference.md)
-- Korean API reference: [docs/ko/api-reference.md](./docs/ko/api-reference.md)
-
-If you are new to the project, the fastest path is:
+**Recommended Reading Path:**
 
 1. [Getting Started](./docs/en/getting-started.md)
 2. [Understanding Spine Models](./docs/en/understanding-spine-models.md)
@@ -164,22 +164,19 @@ If you are new to the project, the fastest path is:
 4. [Observability Records](./docs/en/observability-records.md)
 5. [Artifacts And Lineage](./docs/en/artifacts-and-lineage.md)
 
-## Repository Layout
+## 🏗️ Repository Layout
 
-- `src/spine`: public package and implementation
-- `examples`: runnable example flows
-- `tests`: model and serialization tests
-- `docs/en`: English guide
-- `docs/ko`: Korean guide
+- `src/spine`: Public package and implementation
+- `examples`: Runnable example flows
+- `tests`: Model and serialization tests
+- `docs/en` & `docs/ko`: Detailed documentation
 
-## Current Status
+## 🚦 Current Status
 
-This repository is currently at an early stage, but the core contract surface is already in place:
+This repository is currently at an early stage, but the core contract surface is fully operational:
 
-- canonical object modeling,
-- validation,
-- deterministic serialization,
-- compatibility-aware reading,
-- extension namespace governance.
-
-The included example and current test suite both run successfully with `uv`.
+- ✅ Canonical object modeling
+- ✅ Strict schema validation
+- ✅ Deterministic serialization
+- ✅ Compatibility-aware reading
+- ✅ Extension namespace governance
