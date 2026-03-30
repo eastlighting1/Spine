@@ -8,7 +8,7 @@ Korean README: [README.ko.md](./README.ko.md)
 
 It gives teams a shared model for execution context, observability records, artifacts, lineage, validation, deterministic serialization, and compatibility-aware reading. Instead of letting each producer invent its own payload shape, Spine gives you one contract for building, validating, serializing, and re-reading the same kinds of objects consistently.
 
-The repository includes a GitHub Actions workflow for linting, type-checking, tests, example execution, dependency auditing, package builds, and repository-level security checks.
+The repository includes a GitHub Actions workflow for linting, type-checking, tests, dependency auditing, package builds, and repository-level security checks.
 
 ## Why Spine
 
