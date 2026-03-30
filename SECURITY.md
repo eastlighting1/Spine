@@ -1,15 +1,25 @@
 # Security Policy
 
+Spine is still an early-stage library. The project skeleton and a meaningful portion of the surrounding scaffolding were established through vibe-coding-style iteration, then tightened with tests, validation rules, packaging checks, and documentation review. That means we want security feedback, correctness feedback, and hardening suggestions early and often.
+
 ## Reporting A Vulnerability
 
-If you believe you have found a security issue in Spine, please avoid opening a public issue with full exploit details.
+If you believe you have found a security issue in Spine, please avoid posting full exploit details, secrets, tokens, or private infrastructure information in public.
 
-Please report the issue privately to the maintainers through the repository security reporting channel if it is enabled. If that channel is not available yet, contact the maintainers directly through the repository's primary maintainer contact path and include:
+For most reports in this repository, GitHub-native collaboration is preferred:
+
+- open a GitHub issue for suspected weaknesses, unsafe behavior, missing validation, packaging concerns, or dependency-risk findings that are safe to discuss publicly,
+- open a pull request if you already have a concrete hardening fix, test, or documentation update,
+- use the repository security reporting channel if it is enabled for anything sensitive that should not be disclosed publicly yet.
+
+When filing an issue, PR, or private report, include:
 
 - a short description of the issue,
 - affected versions or commit range,
 - reproduction steps or proof of concept,
 - potential impact.
+
+If you are unsure whether something is a security bug or a correctness bug, open an issue anyway and mark it clearly as a suspected security concern.
 
 ## Supported Versions
 

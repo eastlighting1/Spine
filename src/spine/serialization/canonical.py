@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
 import json
-from typing import Any
+from typing import Any, Callable, TypeVar, cast
 
 from ..exceptions import SerializationError, ValidationError
 from ..models import (
@@ -55,6 +55,8 @@ CanonicalObject = (
     | TraceSpanRecord
 )
 
+T = TypeVar("T")
+
 
 def _convert(value: Any) -> Any:
     if isinstance(value, StableRef):
@@ -73,7 +75,10 @@ def _convert(value: Any) -> Any:
 def to_payload(obj: CanonicalObject) -> dict[str, Any]:
     """Serialize a canonical object to a deterministic JSON-compatible payload."""
     try:
-        return _convert(obj)
+        payload = _convert(obj)
+        if not isinstance(payload, dict):
+            raise SerializationError(f"Serialized payload for {type(obj).__name__} is not a mapping")
+        return cast(dict[str, Any], payload)
     except Exception as exc:  # pragma: no cover
         raise SerializationError(f"Failed to serialize {type(obj).__name__}") from exc
 
@@ -95,7 +100,7 @@ def _parse_ref(raw: str | None, field_name: str) -> StableRef:
         raise SerializationError(f"Invalid StableRef for {field_name}: {raw!r}") from exc
 
 
-def _validate_deserialized(value: CanonicalObject, validator: Any) -> CanonicalObject:
+def _validate_deserialized(value: T, validator: Callable[[T], Any]) -> T:
     try:
         validator(value).raise_for_errors()
     except ValidationError as exc:

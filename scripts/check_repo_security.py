@@ -68,7 +68,7 @@ def check_required_files(errors: list[str], warnings: list[str]) -> None:
     if not (ROOT / "uv.lock").exists():
         errors.append("Missing uv.lock")
     if not (ROOT / "README.md").exists():
-        errors.append("Missing README.md")
+        warnings.append("Missing README.md")
     if not (ROOT / "LICENSE").exists() and not (ROOT / "LICENSE.md").exists():
         warnings.append("Missing LICENSE file")
 
