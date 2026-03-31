@@ -8,7 +8,7 @@ It is best read as a page about the feel of assembling objects in the flow `Proj
 
 ## Basic Training Flow
 
-The basic example included in the project is [`examples/basic_training_flow.py`](C:/Users/eastl/MLObservability/Spine/examples/basic_training_flow.py).
+The basic example included in the project is [`examples/basic_training_flow.py`](../../examples/basic_training_flow.py).
 
 Flow:
 

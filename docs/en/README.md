@@ -26,5 +26,5 @@ If you are new to Spine, it is usually much more efficient to read `Getting Star
 
 Related files:
 
-- Package entrypoint: [`src/spine/__init__.py`](C:/Users/eastl/MLObservability/Spine/src/spine/__init__.py)
-- Basic example: [`examples/basic_training_flow.py`](C:/Users/eastl/MLObservability/Spine/examples/basic_training_flow.py)
+- Package entrypoint: [`src/spine/__init__.py`](../../src/spine/__init__.py)
+- Basic example: [`examples/basic_training_flow.py`](../../examples/basic_training_flow.py)
