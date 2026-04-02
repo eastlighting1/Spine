@@ -21,6 +21,7 @@ from ..models import (
     normalize_timestamp,
 )
 from ..validation import (
+    METRIC_AGGREGATION_SCOPES,
     validate_artifact_manifest,
     validate_environment_snapshot,
     validate_lineage_edge,
@@ -39,6 +40,7 @@ __all__ = [
     "EnvironmentSnapshot",
     "ExtensionFieldSet",
     "LineageEdge",
+    "METRIC_AGGREGATION_SCOPES",
     "MetricPayload",
     "MetricRecord",
     "OperationContext",

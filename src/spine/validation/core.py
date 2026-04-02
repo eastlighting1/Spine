@@ -28,7 +28,9 @@ RECORD_TYPES = frozenset({"structured_event", "metric", "trace_span"})
 EVENT_LEVELS = frozenset({"debug", "info", "warning", "error", "critical"})
 EVENT_ORIGIN_MARKERS = frozenset({"explicit_capture", "imported", "derived", "compatibility_upgrade"})
 METRIC_VALUE_TYPES = frozenset({"scalar", "integer", "float"})
-METRIC_AGGREGATION_SCOPES = frozenset({"global", "run", "stage", "operation", "step"})
+METRIC_AGGREGATION_SCOPES = frozenset(
+    {"global", "run", "stage", "operation", "step", "batch", "epoch", "dataset"}
+)
 TRACE_STATUSES = frozenset({"ok", "error", "cancelled", "timeout"})
 TRACE_SPAN_KINDS = frozenset({"internal", "client", "server", "producer", "consumer", "model_call"})
 COMPLETENESS_MARKERS = frozenset({"complete", "partial", "unknown"})

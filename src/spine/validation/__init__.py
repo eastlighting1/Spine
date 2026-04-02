@@ -1,6 +1,7 @@
 """Validation exports."""
 
 from .core import (
+    METRIC_AGGREGATION_SCOPES,
     validate_artifact_manifest,
     validate_environment_snapshot,
     validate_lineage_edge,
@@ -18,6 +19,7 @@ from .report import ValidationIssue, ValidationReport
 __all__ = [
     "ValidationIssue",
     "ValidationReport",
+    "METRIC_AGGREGATION_SCOPES",
     "validate_artifact_manifest",
     "validate_environment_snapshot",
     "validate_lineage_edge",
