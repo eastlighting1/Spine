@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
+from types import MappingProxyType
 
-from .common import ExtensionFieldSet, SCHEMA_VERSION, StableRef, _sorted_metadata
+from .common import ExtensionFieldSet, SCHEMA_VERSION, StableRef, _frozen_mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,9 +20,9 @@ class ArtifactManifest:
     location_ref: str
     hash_value: str | None = None
     size_bytes: int | None = None
-    attributes: dict[str, Any] = field(default_factory=dict)
+    attributes: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     schema_version: str = SCHEMA_VERSION
     extensions: tuple[ExtensionFieldSet, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "attributes", _sorted_metadata(self.attributes))
+        object.__setattr__(self, "attributes", _frozen_mapping(self.attributes))

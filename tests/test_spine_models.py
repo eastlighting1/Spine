@@ -1,5 +1,9 @@
+import pytest
+
 from spine import (
     ArtifactManifest,
+    ExtensionError,
+    ExtensionRegistry,
     MetricPayload,
     MetricRecord,
     Project,
@@ -137,6 +141,135 @@ def test_record_validators_cover_event_metric_and_trace() -> None:
     assert validate_structured_event_record(event_record).valid is True
     assert validate_metric_record(metric_record).valid is True
     assert validate_trace_span_record(trace_record).valid is True
+
+
+# --- Extension registry boundary tests ---
+
+
+def test_extension_registry_rejects_namespace_without_dot_separator() -> None:
+    registry = ExtensionRegistry()
+
+    with pytest.raises(ExtensionError):
+        registry.register("noseparator", "owner-a")
+
+
+def test_extension_registry_rejects_conflict_with_different_owner() -> None:
+    registry = ExtensionRegistry()
+    registry.register("vendor.scribe", "owner-a")
+
+    with pytest.raises(ExtensionError):
+        registry.register("vendor.scribe", "owner-b")
+
+
+def test_extension_registry_allows_reregistration_by_same_owner() -> None:
+    registry = ExtensionRegistry()
+    registry.register("vendor.scribe", "owner-a")
+    registry.register("vendor.scribe", "owner-a")  # must not raise
+
+    assert registry.owner_for("vendor.scribe") == "owner-a"
+
+
+def test_extension_registry_reports_unregistered_namespace_as_none() -> None:
+    registry = ExtensionRegistry()
+
+    assert registry.is_registered("vendor.unknown") is False
+    assert registry.owner_for("vendor.unknown") is None
+
+
+def test_extension_registry_supports_multiple_distinct_namespaces() -> None:
+    registry = ExtensionRegistry()
+    registry.register("vendor.alpha", "owner-a")
+    registry.register("vendor.beta", "owner-b")
+
+    assert registry.owner_for("vendor.alpha") == "owner-a"
+    assert registry.owner_for("vendor.beta") == "owner-b"
+
+
+def test_project_tags_are_frozen_and_decoupled_from_input_mapping() -> None:
+    tags = {"zeta": "last", "alpha": "first"}
+    project = Project(
+        project_ref=StableRef("project", "nova"),
+        name="NovaVision",
+        created_at="2026-03-29T10:15:21Z",
+        tags=tags,
+    )
+
+    tags["beta"] = "external-change"
+
+    assert list(project.tags.keys()) == ["alpha", "zeta"]
+    assert "beta" not in project.tags
+
+    with pytest.raises(TypeError):
+        project.tags["gamma"] = "blocked"  # type: ignore[index]
+
+
+def test_artifact_attributes_are_frozen() -> None:
+    manifest = ArtifactManifest(
+        artifact_ref=StableRef("artifact", "checkpoint-01"),
+        artifact_kind="checkpoint",
+        created_at="2026-03-29T10:29:58Z",
+        producer_ref="sdk.python.local",
+        run_ref=StableRef("run", "run-01"),
+        stage_execution_ref=StableRef("stage", "train"),
+        location_ref="file://artifacts/checkpoint-01.ckpt",
+        attributes={"epoch": 1},
+    )
+
+    with pytest.raises(TypeError):
+        manifest.attributes["loss"] = 0.12  # type: ignore[index]
+
+
+def test_metric_validator_rejects_boolean_value_for_integer_type() -> None:
+    metric_record = MetricRecord(
+        envelope=RecordEnvelope(
+            record_ref=StableRef("record", "metric-bool"),
+            record_type="metric",
+            recorded_at="2026-03-29T10:16:02Z",
+            observed_at="2026-03-29T10:16:02Z",
+            producer_ref="sdk.python.local",
+            run_ref=StableRef("run", "run-01"),
+            stage_execution_ref=StableRef("stage", "train"),
+            operation_context_ref=StableRef("op", "step-42"),
+        ),
+        payload=MetricPayload(
+            metric_key="training.examples",
+            value=True,
+            value_type="integer",
+        ),
+    )
+
+    report = validate_metric_record(metric_record)
+
+    assert report.valid is False
+    assert any(issue.path == "payload.value" for issue in report.issues)
+
+
+def test_structured_event_validator_rejects_blank_message() -> None:
+    event_record = StructuredEventRecord(
+        envelope=RecordEnvelope(
+            record_ref=StableRef("record", "evt-blank-message"),
+            record_type="structured_event",
+            recorded_at="2026-03-29T10:15:21Z",
+            observed_at="2026-03-29T10:15:21Z",
+            producer_ref="sdk.python.local",
+            run_ref=StableRef("run", "run-01"),
+            stage_execution_ref=StableRef("stage", "train"),
+            operation_context_ref=StableRef("op", "epoch-1"),
+        ),
+        payload=StructuredEventPayload(
+            event_key="training.epoch.started",
+            level="info",
+            message="  ",
+        ),
+    )
+
+    report = validate_structured_event_record(event_record)
+
+    assert report.valid is False
+    assert any(issue.path == "payload.message" for issue in report.issues)
+
+
+# --- Existing test preserved below ---
 
 
 def test_trace_validation_rejects_inverted_payload_timestamps() -> None:

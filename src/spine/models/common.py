@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import re
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 
 REF_KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -30,10 +31,11 @@ def normalize_timestamp(value: str | datetime) -> str:
     return dt.isoformat().replace("+00:00", "Z")
 
 
-def _sorted_metadata(values: dict[str, Any] | None) -> dict[str, Any]:
+def _frozen_mapping(values: Mapping[str, Any] | None) -> Mapping[str, Any]:
     if not values:
-        return {}
-    return {key: values[key] for key in sorted(values)}
+        return MappingProxyType({})
+    ordered = {key: values[key] for key in sorted(values)}
+    return MappingProxyType(ordered)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,12 +70,12 @@ class ExtensionFieldSet:
     """Governed extension values registered under a namespace."""
 
     namespace: str
-    fields: dict[str, Any] = field(default_factory=dict)
+    fields: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         if "." not in self.namespace:
             raise ValueError("Extension namespace must contain a '.' separator.")
-        object.__setattr__(self, "fields", _sorted_metadata(self.fields))
+        object.__setattr__(self, "fields", _frozen_mapping(self.fields))
 
     def to_dict(self) -> dict[str, Any]:
         return {"namespace": self.namespace, "fields": self.fields}

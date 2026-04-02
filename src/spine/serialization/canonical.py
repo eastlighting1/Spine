@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
 import json
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Callable, Mapping, TypeVar, cast
 
 from ..exceptions import SerializationError, ValidationError
 from ..models import (
@@ -59,6 +59,10 @@ T = TypeVar("T")
 
 
 def _convert(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
     if isinstance(value, StableRef):
         return str(value)
     if is_dataclass(value):
@@ -67,9 +71,11 @@ def _convert(value: Any) -> Any:
         return [_convert(item) for item in value]
     if isinstance(value, list):
         return [_convert(item) for item in value]
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {key: _convert(value[key]) for key in sorted(value)}
-    return value
+    raise SerializationError(
+        f"Unsupported value type for canonical serialization: {type(value).__name__}"
+    )
 
 
 def to_payload(obj: CanonicalObject) -> dict[str, Any]:
@@ -79,6 +85,8 @@ def to_payload(obj: CanonicalObject) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise SerializationError(f"Serialized payload for {type(obj).__name__} is not a mapping")
         return cast(dict[str, Any], payload)
+    except SerializationError:
+        raise
     except Exception as exc:  # pragma: no cover
         raise SerializationError(f"Failed to serialize {type(obj).__name__}") from exc
 
@@ -87,6 +95,8 @@ def to_json(obj: CanonicalObject) -> str:
     """Serialize a canonical object to a deterministic JSON string."""
     try:
         return json.dumps(to_payload(obj), sort_keys=True, separators=(",", ":"))
+    except SerializationError:
+        raise
     except Exception as exc:  # pragma: no cover
         raise SerializationError(f"Failed to encode JSON for {type(obj).__name__}") from exc
 
@@ -100,6 +110,86 @@ def _parse_ref(raw: str | None, field_name: str) -> StableRef:
         raise SerializationError(f"Invalid StableRef for {field_name}: {raw!r}") from exc
 
 
+def _require_mapping(raw: Any, context: str) -> dict[str, Any]:
+    if not isinstance(raw, Mapping):
+        raise SerializationError(f"{context} payload must be a mapping")
+    return {str(key): value for key, value in raw.items()}
+
+
+def _read_required(payload: Mapping[str, Any], field_name: str) -> Any:
+    if field_name not in payload:
+        raise SerializationError(f"Missing required field: {field_name}")
+    return payload[field_name]
+
+
+def _read_string(payload: Mapping[str, Any], field_name: str, *, required: bool = True) -> str | None:
+    if not required and field_name not in payload:
+        return None
+    value = _read_required(payload, field_name) if required else payload.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise SerializationError(f"Field {field_name} must be a string")
+    return value
+
+
+def _read_int(payload: Mapping[str, Any], field_name: str, *, required: bool = True) -> int | None:
+    if not required and field_name not in payload:
+        return None
+    value = _read_required(payload, field_name) if required else payload.get(field_name)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise SerializationError(f"Field {field_name} must be an integer")
+    if not isinstance(value, int):
+        raise SerializationError(f"Field {field_name} must be an integer")
+    return value
+
+
+def _read_string_mapping(payload: Mapping[str, Any], field_name: str) -> dict[str, str]:
+    raw = payload.get(field_name, {})
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise SerializationError(f"Field {field_name} must be a mapping")
+    result: dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise SerializationError(f"Field {field_name} must be a mapping of string keys to string values")
+        result[key] = value
+    return result
+
+
+def _read_mapping(payload: Mapping[str, Any], field_name: str) -> dict[str, Any]:
+    raw = payload.get(field_name, {})
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise SerializationError(f"Field {field_name} must be a mapping")
+    return {str(key): value for key, value in raw.items()}
+
+
+def _read_string_tuple(payload: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
+    raw = payload.get(field_name, ())
+    if raw is None:
+        return ()
+    if not isinstance(raw, (list, tuple)):
+        raise SerializationError(f"Field {field_name} must be a list of strings")
+    result: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise SerializationError(f"Field {field_name} must be a list of strings")
+        result.append(item)
+    return tuple(result)
+
+
+def _read_ref(payload: Mapping[str, Any], field_name: str, *, required: bool = True) -> StableRef | None:
+    raw = _read_string(payload, field_name, required=required)
+    if raw is None:
+        return None
+    return _parse_ref(raw, field_name)
+
+
 def _validate_deserialized(value: T, validator: Callable[[T], Any]) -> T:
     try:
         validator(value).raise_for_errors()
@@ -109,218 +199,223 @@ def _validate_deserialized(value: T, validator: Callable[[T], Any]) -> T:
 
 
 def deserialize_project(payload: dict[str, Any]) -> Project:
+    payload = _require_mapping(payload, "Project")
     project = Project(
-        project_ref=_parse_ref(payload.get("project_ref"), "project_ref"),
-        name=str(payload["name"]),
-        created_at=str(payload["created_at"]),
-        description=payload.get("description"),
-        tags={str(k): str(v) for k, v in dict(payload.get("tags", {})).items()},
-        schema_version=str(payload.get("schema_version", "")),
+        project_ref=cast(StableRef, _read_ref(payload, "project_ref")),
+        name=cast(str, _read_string(payload, "name")),
+        created_at=cast(str, _read_string(payload, "created_at")),
+        description=_read_string(payload, "description", required=False),
+        tags=_read_string_mapping(payload, "tags"),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(project, validate_project)
 
 
 def deserialize_run(payload: dict[str, Any]) -> Run:
+    payload = _require_mapping(payload, "Run")
     run = Run(
-        run_ref=_parse_ref(payload.get("run_ref"), "run_ref"),
-        project_ref=_parse_ref(payload.get("project_ref"), "project_ref"),
-        name=str(payload["name"]),
-        status=str(payload["status"]),
-        started_at=str(payload["started_at"]),
-        ended_at=str(payload["ended_at"]) if payload.get("ended_at") is not None else None,
-        description=payload.get("description"),
-        schema_version=str(payload.get("schema_version", "")),
+        run_ref=cast(StableRef, _read_ref(payload, "run_ref")),
+        project_ref=cast(StableRef, _read_ref(payload, "project_ref")),
+        name=cast(str, _read_string(payload, "name")),
+        status=cast(str, _read_string(payload, "status")),
+        started_at=cast(str, _read_string(payload, "started_at")),
+        ended_at=_read_string(payload, "ended_at", required=False),
+        description=_read_string(payload, "description", required=False),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(run, validate_run)
 
 
 def deserialize_stage_execution(payload: dict[str, Any]) -> StageExecution:
+    payload = _require_mapping(payload, "StageExecution")
     stage = StageExecution(
-        stage_execution_ref=_parse_ref(payload.get("stage_execution_ref"), "stage_execution_ref"),
-        run_ref=_parse_ref(payload.get("run_ref"), "run_ref"),
-        stage_name=str(payload["stage_name"]),
-        status=str(payload["status"]),
-        started_at=str(payload["started_at"]),
-        ended_at=str(payload["ended_at"]) if payload.get("ended_at") is not None else None,
-        order_index=int(payload["order_index"]) if payload.get("order_index") is not None else None,
-        schema_version=str(payload.get("schema_version", "")),
+        stage_execution_ref=cast(StableRef, _read_ref(payload, "stage_execution_ref")),
+        run_ref=cast(StableRef, _read_ref(payload, "run_ref")),
+        stage_name=cast(str, _read_string(payload, "stage_name")),
+        status=cast(str, _read_string(payload, "status")),
+        started_at=cast(str, _read_string(payload, "started_at")),
+        ended_at=_read_string(payload, "ended_at", required=False),
+        order_index=_read_int(payload, "order_index", required=False),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(stage, validate_stage_execution)
 
 
 def deserialize_operation_context(payload: dict[str, Any]) -> OperationContext:
+    payload = _require_mapping(payload, "OperationContext")
     operation = OperationContext(
-        operation_context_ref=_parse_ref(payload.get("operation_context_ref"), "operation_context_ref"),
-        run_ref=_parse_ref(payload.get("run_ref"), "run_ref"),
-        stage_execution_ref=_parse_ref(payload["stage_execution_ref"], "stage_execution_ref")
-        if payload.get("stage_execution_ref")
-        else None,
-        operation_name=str(payload["operation_name"]),
-        observed_at=str(payload["observed_at"]),
-        schema_version=str(payload.get("schema_version", "")),
+        operation_context_ref=cast(StableRef, _read_ref(payload, "operation_context_ref")),
+        run_ref=cast(StableRef, _read_ref(payload, "run_ref")),
+        stage_execution_ref=_read_ref(payload, "stage_execution_ref", required=False),
+        operation_name=cast(str, _read_string(payload, "operation_name")),
+        observed_at=cast(str, _read_string(payload, "observed_at")),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(operation, validate_operation_context)
 
 
 def deserialize_environment_snapshot(payload: dict[str, Any]) -> EnvironmentSnapshot:
+    payload = _require_mapping(payload, "EnvironmentSnapshot")
     snapshot = EnvironmentSnapshot(
-        environment_snapshot_ref=_parse_ref(
-            payload.get("environment_snapshot_ref"), "environment_snapshot_ref"
-        ),
-        run_ref=_parse_ref(payload.get("run_ref"), "run_ref"),
-        captured_at=str(payload["captured_at"]),
-        python_version=str(payload["python_version"]),
-        platform=str(payload["platform"]),
-        packages={str(k): str(v) for k, v in dict(payload.get("packages", {})).items()},
-        environment_variables={
-            str(k): str(v) for k, v in dict(payload.get("environment_variables", {})).items()
-        },
-        schema_version=str(payload.get("schema_version", "")),
+        environment_snapshot_ref=cast(StableRef, _read_ref(payload, "environment_snapshot_ref")),
+        run_ref=cast(StableRef, _read_ref(payload, "run_ref")),
+        captured_at=cast(str, _read_string(payload, "captured_at")),
+        python_version=cast(str, _read_string(payload, "python_version")),
+        platform=cast(str, _read_string(payload, "platform")),
+        packages=_read_string_mapping(payload, "packages"),
+        environment_variables=_read_string_mapping(payload, "environment_variables"),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(snapshot, validate_environment_snapshot)
 
 
 def deserialize_artifact_manifest(payload: dict[str, Any]) -> ArtifactManifest:
+    payload = _require_mapping(payload, "ArtifactManifest")
     manifest = ArtifactManifest(
-        artifact_ref=_parse_ref(payload.get("artifact_ref"), "artifact_ref"),
-        artifact_kind=str(payload["artifact_kind"]),
-        created_at=str(payload["created_at"]),
-        producer_ref=str(payload["producer_ref"]),
-        run_ref=_parse_ref(payload.get("run_ref"), "run_ref"),
-        stage_execution_ref=_parse_ref(payload["stage_execution_ref"], "stage_execution_ref")
-        if payload.get("stage_execution_ref")
-        else None,
-        location_ref=str(payload["location_ref"]),
-        hash_value=str(payload["hash_value"]) if payload.get("hash_value") is not None else None,
-        size_bytes=int(payload["size_bytes"]) if payload.get("size_bytes") is not None else None,
-        attributes=dict(payload.get("attributes", {})),
-        schema_version=str(payload.get("schema_version", "")),
+        artifact_ref=cast(StableRef, _read_ref(payload, "artifact_ref")),
+        artifact_kind=cast(str, _read_string(payload, "artifact_kind")),
+        created_at=cast(str, _read_string(payload, "created_at")),
+        producer_ref=cast(str, _read_string(payload, "producer_ref")),
+        run_ref=cast(StableRef, _read_ref(payload, "run_ref")),
+        stage_execution_ref=_read_ref(payload, "stage_execution_ref", required=False),
+        location_ref=cast(str, _read_string(payload, "location_ref")),
+        hash_value=_read_string(payload, "hash_value", required=False),
+        size_bytes=_read_int(payload, "size_bytes", required=False),
+        attributes=_read_mapping(payload, "attributes"),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(manifest, validate_artifact_manifest)
 
 
 def deserialize_lineage_edge(payload: dict[str, Any]) -> LineageEdge:
+    payload = _require_mapping(payload, "LineageEdge")
     edge = LineageEdge(
-        relation_ref=_parse_ref(payload.get("relation_ref"), "relation_ref"),
-        relation_type=str(payload["relation_type"]),
-        source_ref=_parse_ref(payload.get("source_ref"), "source_ref"),
-        target_ref=_parse_ref(payload.get("target_ref"), "target_ref"),
-        recorded_at=str(payload["recorded_at"]),
-        origin_marker=str(payload["origin_marker"]),
-        confidence_marker=str(payload["confidence_marker"]),
-        operation_context_ref=_parse_ref(payload["operation_context_ref"], "operation_context_ref")
-        if payload.get("operation_context_ref")
-        else None,
-        evidence_refs=tuple(str(item) for item in payload.get("evidence_refs", ())),
-        schema_version=str(payload.get("schema_version", "")),
+        relation_ref=cast(StableRef, _read_ref(payload, "relation_ref")),
+        relation_type=cast(str, _read_string(payload, "relation_type")),
+        source_ref=cast(StableRef, _read_ref(payload, "source_ref")),
+        target_ref=cast(StableRef, _read_ref(payload, "target_ref")),
+        recorded_at=cast(str, _read_string(payload, "recorded_at")),
+        origin_marker=cast(str, _read_string(payload, "origin_marker")),
+        confidence_marker=cast(str, _read_string(payload, "confidence_marker")),
+        operation_context_ref=_read_ref(payload, "operation_context_ref", required=False),
+        evidence_refs=_read_string_tuple(payload, "evidence_refs"),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(edge, validate_lineage_edge)
 
 
 def deserialize_provenance_record(payload: dict[str, Any]) -> ProvenanceRecord:
+    payload = _require_mapping(payload, "ProvenanceRecord")
     record = ProvenanceRecord(
-        provenance_ref=_parse_ref(payload.get("provenance_ref"), "provenance_ref"),
-        relation_ref=_parse_ref(payload.get("relation_ref"), "relation_ref"),
-        formation_context_ref=_parse_ref(payload["formation_context_ref"], "formation_context_ref")
-        if payload.get("formation_context_ref")
-        else None,
-        policy_ref=str(payload["policy_ref"]) if payload.get("policy_ref") is not None else None,
-        evidence_bundle_ref=str(payload["evidence_bundle_ref"])
-        if payload.get("evidence_bundle_ref") is not None
-        else None,
-        assertion_mode=str(payload["assertion_mode"]),
-        asserted_at=str(payload["asserted_at"]),
-        schema_version=str(payload.get("schema_version", "")),
+        provenance_ref=cast(StableRef, _read_ref(payload, "provenance_ref")),
+        relation_ref=cast(StableRef, _read_ref(payload, "relation_ref")),
+        formation_context_ref=_read_ref(payload, "formation_context_ref", required=False),
+        policy_ref=_read_string(payload, "policy_ref", required=False),
+        evidence_bundle_ref=_read_string(payload, "evidence_bundle_ref", required=False),
+        assertion_mode=cast(str, _read_string(payload, "assertion_mode")),
+        asserted_at=cast(str, _read_string(payload, "asserted_at")),
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
     return _validate_deserialized(record, validate_provenance_record)
 
 
 def _deserialize_envelope(payload: dict[str, Any]) -> RecordEnvelope:
-    correlation_payload = dict(payload.get("correlation_refs", {}))
+    payload = _require_mapping(payload, "RecordEnvelope")
+    correlation_payload = _read_mapping(payload, "correlation_refs")
     return RecordEnvelope(
-        record_ref=_parse_ref(payload.get("record_ref"), "record_ref"),
-        record_type=str(payload["record_type"]),
-        recorded_at=str(payload["recorded_at"]),
-        observed_at=str(payload["observed_at"]),
-        producer_ref=str(payload["producer_ref"]),
-        run_ref=_parse_ref(payload.get("run_ref"), "run_ref"),
-        stage_execution_ref=_parse_ref(payload["stage_execution_ref"], "stage_execution_ref")
-        if payload.get("stage_execution_ref")
-        else None,
-        operation_context_ref=_parse_ref(payload["operation_context_ref"], "operation_context_ref")
-        if payload.get("operation_context_ref")
-        else None,
+        record_ref=cast(StableRef, _read_ref(payload, "record_ref")),
+        record_type=cast(str, _read_string(payload, "record_type")),
+        recorded_at=cast(str, _read_string(payload, "recorded_at")),
+        observed_at=cast(str, _read_string(payload, "observed_at")),
+        producer_ref=cast(str, _read_string(payload, "producer_ref")),
+        run_ref=cast(StableRef, _read_ref(payload, "run_ref")),
+        stage_execution_ref=_read_ref(payload, "stage_execution_ref", required=False),
+        operation_context_ref=_read_ref(payload, "operation_context_ref", required=False),
         correlation_refs=CorrelationRefs(
-            trace_id=str(correlation_payload["trace_id"])
-            if correlation_payload.get("trace_id") is not None
-            else None,
-            session_id=str(correlation_payload["session_id"])
-            if correlation_payload.get("session_id") is not None
-            else None,
+            trace_id=_read_string(correlation_payload, "trace_id", required=False),
+            session_id=_read_string(correlation_payload, "session_id", required=False),
         ),
-        completeness_marker=str(payload.get("completeness_marker", "complete")),
-        degradation_marker=str(payload.get("degradation_marker", "none")),
-        schema_version=str(payload.get("schema_version", "")),
+        completeness_marker=_read_string(payload, "completeness_marker", required=False) or "complete",
+        degradation_marker=_read_string(payload, "degradation_marker", required=False) or "none",
+        schema_version=cast(str, _read_string(payload, "schema_version")),
     )
 
 
+def _split_record_payload(
+    payload: dict[str, Any],
+    envelope_context: str,
+    body_context: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    payload = _require_mapping(payload, envelope_context)
+    envelope_payload = payload
+    if "envelope" in payload:
+        envelope_payload = _require_mapping(_read_required(payload, "envelope"), "RecordEnvelope")
+    payload_body = _require_mapping(_read_required(payload, "payload"), body_context)
+    return envelope_payload, payload_body
+
+
 def deserialize_structured_event_record(payload: dict[str, Any]) -> StructuredEventRecord:
+    envelope_payload, payload_body = _split_record_payload(
+        payload,
+        "StructuredEventRecord",
+        "StructuredEventPayload",
+    )
     record = StructuredEventRecord(
-        envelope=_deserialize_envelope(payload),
+        envelope=_deserialize_envelope(envelope_payload),
         payload=StructuredEventPayload(
-            event_key=str(payload["payload"]["event_key"]),
-            level=str(payload["payload"]["level"]),
-            message=str(payload["payload"]["message"]),
-            subject_ref=str(payload["payload"]["subject_ref"])
-            if payload["payload"].get("subject_ref") is not None
-            else None,
-            attributes=dict(payload["payload"].get("attributes", {})),
-            origin_marker=str(payload["payload"].get("origin_marker", "explicit_capture")),
+            event_key=cast(str, _read_string(payload_body, "event_key")),
+            level=cast(str, _read_string(payload_body, "level")),
+            message=cast(str, _read_string(payload_body, "message")),
+            subject_ref=_read_string(payload_body, "subject_ref", required=False),
+            attributes=_read_mapping(payload_body, "attributes"),
+            origin_marker=_read_string(payload_body, "origin_marker", required=False) or "explicit_capture",
         ),
     )
     return _validate_deserialized(record, validate_structured_event_record)
 
 
 def deserialize_metric_record(payload: dict[str, Any]) -> MetricRecord:
+    envelope_payload, payload_body = _split_record_payload(
+        payload,
+        "MetricRecord",
+        "MetricPayload",
+    )
     record = MetricRecord(
-        envelope=_deserialize_envelope(payload),
+        envelope=_deserialize_envelope(envelope_payload),
         payload=MetricPayload(
-            metric_key=str(payload["payload"]["metric_key"]),
-            value=payload["payload"]["value"],
-            value_type=str(payload["payload"]["value_type"]),
-            unit=str(payload["payload"]["unit"]) if payload["payload"].get("unit") is not None else None,
-            aggregation_scope=str(payload["payload"].get("aggregation_scope", "step")),
-            subject_ref=str(payload["payload"]["subject_ref"])
-            if payload["payload"].get("subject_ref") is not None
-            else None,
-            slice_ref=str(payload["payload"]["slice_ref"])
-            if payload["payload"].get("slice_ref") is not None
-            else None,
-            tags={str(k): str(v) for k, v in dict(payload["payload"].get("tags", {})).items()},
-            summary_basis=str(payload["payload"]["summary_basis"])
-            if payload["payload"].get("summary_basis") is not None
-            else None,
+            metric_key=cast(str, _read_string(payload_body, "metric_key")),
+            value=_read_required(payload_body, "value"),
+            value_type=cast(str, _read_string(payload_body, "value_type")),
+            unit=_read_string(payload_body, "unit", required=False),
+            aggregation_scope=_read_string(payload_body, "aggregation_scope", required=False) or "step",
+            subject_ref=_read_string(payload_body, "subject_ref", required=False),
+            slice_ref=_read_string(payload_body, "slice_ref", required=False),
+            tags=_read_string_mapping(payload_body, "tags"),
+            summary_basis=_read_string(payload_body, "summary_basis", required=False),
         ),
     )
     return _validate_deserialized(record, validate_metric_record)
 
 
 def deserialize_trace_span_record(payload: dict[str, Any]) -> TraceSpanRecord:
+    envelope_payload, payload_body = _split_record_payload(
+        payload,
+        "TraceSpanRecord",
+        "TraceSpanPayload",
+    )
     record = TraceSpanRecord(
-        envelope=_deserialize_envelope(payload),
+        envelope=_deserialize_envelope(envelope_payload),
         payload=TraceSpanPayload(
-            span_id=str(payload["payload"]["span_id"]),
-            trace_id=str(payload["payload"]["trace_id"]),
-            parent_span_id=str(payload["payload"]["parent_span_id"])
-            if payload["payload"].get("parent_span_id") is not None
-            else None,
-            span_name=str(payload["payload"]["span_name"]),
-            started_at=str(payload["payload"]["started_at"]),
-            ended_at=str(payload["payload"]["ended_at"]),
-            status=str(payload["payload"]["status"]),
-            span_kind=str(payload["payload"]["span_kind"]),
-            attributes=dict(payload["payload"].get("attributes", {})),
-            linked_refs=tuple(str(item) for item in payload["payload"].get("linked_refs", ())),
+            span_id=cast(str, _read_string(payload_body, "span_id")),
+            trace_id=cast(str, _read_string(payload_body, "trace_id")),
+            parent_span_id=_read_string(payload_body, "parent_span_id", required=False),
+            span_name=cast(str, _read_string(payload_body, "span_name")),
+            started_at=cast(str, _read_string(payload_body, "started_at")),
+            ended_at=cast(str, _read_string(payload_body, "ended_at")),
+            status=cast(str, _read_string(payload_body, "status")),
+            span_kind=cast(str, _read_string(payload_body, "span_kind")),
+            attributes=_read_mapping(payload_body, "attributes"),
+            linked_refs=_read_string_tuple(payload_body, "linked_refs"),
         ),
     )
     return _validate_deserialized(record, validate_trace_span_record)

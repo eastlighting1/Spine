@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Mapping
+from types import MappingProxyType
 
-from .common import ExtensionFieldSet, SCHEMA_VERSION, StableRef, _sorted_metadata
+from .common import ExtensionFieldSet, SCHEMA_VERSION, StableRef, _frozen_mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,12 +15,12 @@ class Project:
     name: str
     created_at: str
     description: str | None = None
-    tags: dict[str, str] = field(default_factory=dict)
+    tags: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
     schema_version: str = SCHEMA_VERSION
     extensions: tuple[ExtensionFieldSet, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "tags", _sorted_metadata(self.tags))
+        object.__setattr__(self, "tags", _frozen_mapping(self.tags))
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,11 +67,11 @@ class EnvironmentSnapshot:
     captured_at: str
     python_version: str
     platform: str
-    packages: dict[str, str] = field(default_factory=dict)
-    environment_variables: dict[str, str] = field(default_factory=dict)
+    packages: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
+    environment_variables: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
     schema_version: str = SCHEMA_VERSION
     extensions: tuple[ExtensionFieldSet, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "packages", _sorted_metadata(self.packages))
-        object.__setattr__(self, "environment_variables", _sorted_metadata(self.environment_variables))
+        object.__setattr__(self, "packages", _frozen_mapping(self.packages))
+        object.__setattr__(self, "environment_variables", _frozen_mapping(self.environment_variables))

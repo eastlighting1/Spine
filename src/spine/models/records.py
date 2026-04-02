@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
+from types import MappingProxyType
 
-from .common import ExtensionFieldSet, SCHEMA_VERSION, StableRef, _sorted_metadata
+from .common import ExtensionFieldSet, SCHEMA_VERSION, StableRef, _frozen_mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,11 +21,11 @@ class StructuredEventPayload:
     level: str
     message: str
     subject_ref: str | None = None
-    attributes: dict[str, Any] = field(default_factory=dict)
+    attributes: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     origin_marker: str = "explicit_capture"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "attributes", _sorted_metadata(self.attributes))
+        object.__setattr__(self, "attributes", _frozen_mapping(self.attributes))
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,11 +37,11 @@ class MetricPayload:
     aggregation_scope: str = "step"
     subject_ref: str | None = None
     slice_ref: str | None = None
-    tags: dict[str, str] = field(default_factory=dict)
+    tags: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
     summary_basis: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "tags", _sorted_metadata(self.tags))
+        object.__setattr__(self, "tags", _frozen_mapping(self.tags))
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,11 +54,11 @@ class TraceSpanPayload:
     ended_at: str
     status: str
     span_kind: str
-    attributes: dict[str, Any] = field(default_factory=dict)
+    attributes: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     linked_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "attributes", _sorted_metadata(self.attributes))
+        object.__setattr__(self, "attributes", _frozen_mapping(self.attributes))
 
 
 @dataclass(frozen=True, slots=True)
