@@ -3,7 +3,7 @@
   <p><em>A Canonical Contract Library for ML Observability Systems</em></p>
 
   [![Actions status](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml/badge.svg)](https://github.com/eastlighting1/Spine/actions/workflows/ci.yml)
-  [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://github.com/eastlighting1/Spine)
+  [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/eastlighting1/Spine)
   [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
   
   [**English**](./README.md) • [**한국어**](./README.ko.md)
@@ -11,9 +11,11 @@
 
 ---
 
-**Spine** gives teams a shared model for execution context, observability records, artifacts, lineage, validation, deterministic serialization, and compatibility-aware reading. 
+**Spine** gives teams a shared model for execution context, observability records, artifacts, lineage, validation, deterministic serialization, and compatibility-aware reading.
 
 Instead of letting each producer invent its own payload shape, Spine provides **one single contract** for building, validating, serializing, and re-reading the same kinds of objects consistently across your entire ML pipeline.
+
+Spine constructors do not validate automatically. The intended pattern is explicit: build an object, validate it, then serialize or persist it.
 
 ## ❓ Why Spine
 
@@ -63,7 +65,8 @@ graph TD
 ### Strong Defaults
 
 - Use `StableRef` instead of ad hoc identity strings.
-- Validate objects immediately upon construction.
+- Keep construction and validation explicit: build objects first, then call `validate_*().raise_for_errors()`.
+- Freeze and sort metadata mappings on construction so canonical objects remain stable after creation.
 - Serialize into deterministic, canonical payloads.
 - Treat data migration as an explicit compatibility path, not silent magic.
 
@@ -92,6 +95,12 @@ To run the test suite:
 
 ```bash
 uv run pytest tests
+```
+
+To run type checks for both library code and tests:
+
+```bash
+uv run mypy src tests
 ```
 
 ## ⚡ Quick Start
@@ -153,6 +162,8 @@ validate_metric_record(metric).raise_for_errors()
 # 3. Serialize Deterministically
 print(to_json(metric))
 ```
+
+Metadata dictionaries such as `tags`, `attributes`, `packages`, and environment maps may be passed in as plain dicts at construction time. Spine sorts and freezes those mappings internally so the resulting canonical objects stay read-only and deterministic.
 
 ## 📚 Documentation
 

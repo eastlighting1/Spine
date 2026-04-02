@@ -113,6 +113,10 @@ See also:
 - `spine.ExtensionRegistry`
 - `spine.ArtifactManifest`
 
+Notes:
+
+- Spine sorts and freezes extension field mappings during construction.
+
 ### `spine.ExtensionRegistry`
 
 `ExtensionRegistry()`
@@ -182,6 +186,10 @@ See also:
 - `spine.Run`
 - `spine.validate_project`
 - `spine.deserialize_project`
+
+Notes:
+
+- `tags` is stored as a sorted read-only mapping after construction.
 
 ### `spine.Run`
 
@@ -348,6 +356,10 @@ See also:
 - `spine.Run`
 - `spine.validate_environment_snapshot`
 
+Notes:
+
+- `packages` and `environment_variables` are stored as sorted read-only mappings after construction.
+
 ## Record Models
 
 ### `spine.RecordEnvelope`
@@ -379,6 +391,10 @@ Returns:
 See also:
 
 - `spine.StructuredEventRecord`
+
+Notes:
+
+- `attributes` is stored as a sorted read-only mapping after construction.
 - `spine.MetricRecord`
 - `spine.TraceSpanRecord`
 
@@ -475,6 +491,11 @@ See also:
 
 - `spine.MetricRecord`
 
+Notes:
+
+- `tags` is stored as a sorted read-only mapping after construction.
+- Validation checks that `value` is consistent with `value_type`.
+
 ### `spine.MetricRecord`
 
 `MetricRecord(envelope, payload)`
@@ -548,6 +569,10 @@ See also:
 
 - `spine.TraceSpanRecord`
 
+Notes:
+
+- `attributes` is stored as a sorted read-only mapping after construction.
+
 ### `spine.TraceSpanRecord`
 
 `TraceSpanRecord(envelope, payload)`
@@ -587,7 +612,7 @@ trace = TraceSpanRecord(
         started_at="2026-03-30T09:10:00Z",
         ended_at="2026-03-30T09:10:01Z",
         status="ok",
-        span_kind="request",
+        span_kind="client",
     ),
 )
 ```
@@ -646,6 +671,10 @@ See also:
 - `spine.LineageEdge`
 - `spine.validate_artifact_manifest`
 - `spine.read_compat_artifact_manifest`
+
+Notes:
+
+- `attributes` is stored as a sorted read-only mapping after construction.
 
 ### `spine.LineageEdge`
 
@@ -763,6 +792,7 @@ Checks:
 - `project_ref.kind == "project"`
 - `name` is not blank
 - `created_at` is a normalized timestamp
+- `tags` keys and values are not blank
 - `schema_version` matches
 
 Returns:
@@ -892,6 +922,9 @@ Checks:
 - `envelope.record_type == "metric"`
 - `metric_key` is not blank
 - `value_type` is in the allowed set
+- `value` is consistent with `value_type`
+- `aggregation_scope` is in the allowed set
+- optional string fields must be non-blank when present
 
 Returns:
 
@@ -984,6 +1017,8 @@ See also:
 ### deserializer functions
 
 Read current-schema payloads into current canonical objects.
+
+For record families, deserializers accept the canonical flat payload form and the nested `{"envelope": ..., "payload": ...}` form produced by `to_payload()`.
 
 #### `spine.deserialize_project(payload)`
 
@@ -1218,6 +1253,7 @@ Notes:
 - legacy `ref` -> `project_ref`
 - legacy `created` -> `created_at`
 - timestamp normalization
+- explicit migration steps run before the current-schema deserializer
 
 Example:
 
@@ -1255,6 +1291,7 @@ Notes:
 
 - legacy `hash` -> `hash_value`
 - timestamp normalization
+- explicit migration steps run before the current-schema deserializer
 
 See also:
 

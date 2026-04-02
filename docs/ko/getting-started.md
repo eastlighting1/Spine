@@ -76,6 +76,12 @@ uv run --with-editable . --with pytest python -m pytest -q
 
 처음 환경을 확인할 때는 이 명령이 가장 빠른 sanity check입니다.
 
+라이브러리 코드와 테스트를 함께 타입 검사하려면 다음 명령을 사용합니다.
+
+```bash
+uv run mypy src tests
+```
+
 ### import 확인
 
 설치 뒤에 최소한 아래 명령이 되는지 확인해 두는 것이 좋습니다.
@@ -154,7 +160,7 @@ payload 수준에서는 문자열이 맞지만, 모델 내부에서는 `StableRe
 
 ### 3. 만든 직후 validation
 
-Spine에서는 객체를 만든 뒤 바로 validation을 수행하는 패턴이 가장 안전합니다.
+Spine의 생성자는 자동으로 validation을 수행하지 않습니다. 객체를 만든 뒤 바로 validation을 수행하는 패턴이 가장 안전합니다.
 
 ```python
 report = validate_project(project)
@@ -188,6 +194,8 @@ validate_project(project).raise_for_errors()
 - `created_at`: 생성 시각
 - `description`: 설명
 - `tags`: 간단한 메타데이터
+
+`tags`, `attributes`, `packages`, `environment_variables` 같은 메타데이터 mapping은 생성 시 정렬되고 read-only로 고정됩니다. 입력으로는 일반 dict를 넘겨도 되지만, 모델에 저장된 값은 수정 가능한 dict가 아니라 읽기 전용 뷰로 생각하는 편이 맞습니다.
 
 ### 왜 `Project`가 필요한가
 
@@ -295,6 +303,8 @@ validate_metric_record(metric).raise_for_errors()
 - `value_type`: 값의 타입
 - `unit`: 단위
 - `tags`: 보조 메타데이터
+
+현재 metric validation은 `value`가 `value_type`과 일치하는지도 검사합니다. 따라서 `integer`는 `int`, `float`는 `float`여야 하고, boolean 값은 허용되지 않습니다.
 
 ### 왜 envelope와 payload를 나누나
 

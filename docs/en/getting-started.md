@@ -76,6 +76,12 @@ uv run --with-editable . --with pytest python -m pytest -q
 
 When you are checking a fresh environment, this is usually the fastest sanity check.
 
+To run type checks for both the library code and the test suite:
+
+```bash
+uv run mypy src tests
+```
+
 ### Check Imports
 
 After installation, it is a good idea to confirm that at least the command below works:
@@ -154,7 +160,7 @@ Current validation checks that major timestamp fields follow this normalized for
 
 ### 3. Validate Right After Construction
 
-In Spine, the safest pattern is to validate an object immediately after you build it.
+In Spine, constructors do not auto-validate. The safest pattern is to validate an object immediately after you build it.
 
 ```python
 report = validate_project(project)
@@ -188,6 +194,8 @@ At this stage, it is enough to understand these field meanings:
 - `created_at`: creation time,
 - `description`: short description,
 - `tags`: lightweight metadata.
+
+Spine sorts and freezes metadata mappings such as `tags`, `attributes`, `packages`, and `environment_variables` during construction. You can pass plain dicts in, but the stored model fields are read-only views.
 
 ### Why You Need `Project`
 
@@ -295,6 +303,8 @@ validate_metric_record(metric).raise_for_errors()
 - `value_type`: type of value
 - `unit`: measurement unit
 - `tags`: auxiliary metadata
+
+Current metric validation also checks that `value` matches `value_type`, so `integer` metrics must carry an `int`, `float` metrics must carry a `float`, and booleans are rejected.
 
 ### Why Envelope And Payload Are Split
 

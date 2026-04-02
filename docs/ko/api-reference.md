@@ -113,6 +113,10 @@ See also:
 - `spine.ExtensionRegistry`
 - `spine.ArtifactManifest`
 
+Notes:
+
+- Spine은 extension field mapping을 생성 시 정렬하고 read-only로 고정합니다.
+
 ### `spine.ExtensionRegistry`
 
 `ExtensionRegistry()`
@@ -182,6 +186,10 @@ See also:
 - `spine.Run`
 - `spine.validate_project`
 - `spine.deserialize_project`
+
+Notes:
+
+- `tags`는 생성 후 정렬된 read-only mapping으로 저장됩니다.
 
 ### `spine.Run`
 
@@ -348,6 +356,10 @@ See also:
 - `spine.Run`
 - `spine.validate_environment_snapshot`
 
+Notes:
+
+- `packages`와 `environment_variables`는 생성 후 정렬된 read-only mapping으로 저장됩니다.
+
 ## Record Models
 
 ### `spine.RecordEnvelope`
@@ -379,6 +391,10 @@ Returns:
 See also:
 
 - `spine.StructuredEventRecord`
+
+Notes:
+
+- `attributes`는 생성 후 정렬된 read-only mapping으로 저장됩니다.
 - `spine.MetricRecord`
 - `spine.TraceSpanRecord`
 
@@ -475,6 +491,11 @@ See also:
 
 - `spine.MetricRecord`
 
+Notes:
+
+- `tags`는 생성 후 정렬된 read-only mapping으로 저장됩니다.
+- validation은 `value`와 `value_type`의 정합성도 검사합니다.
+
 ### `spine.MetricRecord`
 
 `MetricRecord(envelope, payload)`
@@ -548,6 +569,10 @@ See also:
 
 - `spine.TraceSpanRecord`
 
+Notes:
+
+- `attributes`는 생성 후 정렬된 read-only mapping으로 저장됩니다.
+
 ### `spine.TraceSpanRecord`
 
 `TraceSpanRecord(envelope, payload)`
@@ -587,7 +612,7 @@ trace = TraceSpanRecord(
         started_at="2026-03-30T09:10:00Z",
         ended_at="2026-03-30T09:10:01Z",
         status="ok",
-        span_kind="request",
+        span_kind="client",
     ),
 )
 ```
@@ -646,6 +671,10 @@ See also:
 - `spine.LineageEdge`
 - `spine.validate_artifact_manifest`
 - `spine.read_compat_artifact_manifest`
+
+Notes:
+
+- `attributes`는 생성 후 정렬된 read-only mapping으로 저장됩니다.
 
 ### `spine.LineageEdge`
 
@@ -763,6 +792,7 @@ Checks:
 - `project_ref.kind == "project"`
 - `name` 비어 있지 않음
 - `created_at` 정규 timestamp
+- `tags`의 key와 value는 비어 있지 않음
 - `schema_version` 일치
 
 Returns:
@@ -892,6 +922,9 @@ Checks:
 - `envelope.record_type == "metric"`
 - `metric_key` 비어 있지 않음
 - `value_type` 허용값
+- `value`가 `value_type`과 일치함
+- `aggregation_scope`가 허용값에 포함됨
+- optional string 필드는 값이 있을 경우 비어 있지 않아야 함
 
 Returns:
 
@@ -984,6 +1017,8 @@ See also:
 ### deserializer functions
 
 current schema payload를 current canonical object로 읽습니다.
+
+record 계열 deserializer는 canonical flat payload와 `to_payload()`가 만드는 중첩형 `{"envelope": ..., "payload": ...}` 구조를 모두 읽을 수 있습니다.
 
 #### `spine.deserialize_project(payload)`
 
@@ -1218,6 +1253,7 @@ Notes:
 - legacy `ref` -> `project_ref`
 - legacy `created` -> `created_at`
 - timestamp 정규화
+- current schema deserializer를 호출하기 전에 명시적인 migration step을 수행함
 
 Example:
 
@@ -1255,6 +1291,7 @@ Notes:
 
 - legacy `hash` -> `hash_value`
 - timestamp 정규화
+- current schema deserializer를 호출하기 전에 명시적인 migration step을 수행함
 
 See also:
 
